@@ -35,3 +35,7 @@ Ontonotes 5.0 - https://catalog.ldc.upenn.edu/LDC2013T19
 Generate CoNLL files from Skeleton files:
 
     ~/conll-2012/v3/scripts/skeleton2conll.sh -D ~/ontonotes-release-5.0/data/files/data ~/conll-2012/
+
+### Stanford coreNLP shell
+
+    /Library/Internet\ Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma,ner,parse,dcoref

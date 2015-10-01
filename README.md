@@ -2,7 +2,7 @@
 
 ## System
 
-1. IntermediateCoreferenceSystem.java generates the **mentions file**, which contains all mentions extracted by *Stanford Coref* + their attributes. File looks like the following:
+1. IntermediateCoreferenceSystem.java generates a **mentions file**, containing all mentions extracted by *Stanford Coref* + their attributes. File looks like the following:
 
         DOC_ID  PARAGRAPH_ID    SENT_ID MENTION_ID      START_INDEX     END_INDEX       MENTION NER_ENTITY      HEAD_WORD_LEMMA HEAD_POS_TAG    COREF_ID        GOLD_COREF_ID   NER_ENTITY_TAG  POS_TAG_SEQ
         bc/cctv/00/cctv_0000    0       0       10099   9       10      people  null    people  NNS     10099   -1      O       NNS

@@ -2,7 +2,7 @@ from collections import defaultdict
 import pickle
 import nltk
 import itertools
-yago_labels = pickle.load(open('label_type.pi'))
+#yago_labels = pickle.load(open('label_type.pi'))
 
 class CorefCluster(object):
     # groups of mentions, can be headword or some other grouping
@@ -130,23 +130,23 @@ class Mention(object):
                 self.entity_type = ['<dbpedia:' + x.rsplit('/', 1)[1] + '>' for x in date_tuple[15].split()][0]
             except:
                 pass
-        if self.mention.lower() in yago_labels and len(yago_labels[self.mention.lower()]) > 0:
-           self.entity_type = yago_labels[self.mention.lower()][0]
-           self.entity_url = self.entity_type
-        else:
-            full_ngram = self.mention.lower().split()
-            # generate n-grams
-            for k in range(len(full_ngram)-1, 0, -1):
-                matching_ngrams = set()
-                for ngram in nltk.ngrams(full_ngram, k):
-                    if self.head_lemma not in ngram:
-                        continue
-                    ngram = ' '.join(ngram)
-                    if ngram in yago_labels:
-                        matching_ngrams.add(yago_labels[ngram][0])
-                if matching_ngrams:
-                    self.entity_type = self.entity_url = list(matching_ngrams)[0]
-                    break
+        # if self.mention.lower() in yago_labels and len(yago_labels[self.mention.lower()]) > 0:
+        #    self.entity_type = yago_labels[self.mention.lower()][0]
+        #    self.entity_url = self.entity_type
+        # else:
+        #     full_ngram = self.mention.lower().split()
+        #     # generate n-grams
+        #     for k in range(len(full_ngram)-1, 0, -1):
+        #         matching_ngrams = set()
+        #         for ngram in nltk.ngrams(full_ngram, k):
+        #             if self.head_lemma not in ngram:
+        #                 continue
+        #             ngram = ' '.join(ngram)
+        #             if ngram in yago_labels:
+        #                 matching_ngrams.add(yago_labels[ngram][0])
+        #         if matching_ngrams:
+        #             self.entity_type = self.entity_url = list(matching_ngrams)[0]
+        #             break
 
     def __unicode__(self):
         return self.mention
@@ -188,7 +188,7 @@ def parse_corefs_data_spot(filename, spot_filename):
         if spot_entities:
             i += 1
         line.append(list(spot_entities))
-    print 'Total spotlighted:', i
+    print('Total spotlighted:', i)
 
     # dict of meta information about auto cluster,
     coref_clusters = defaultdict(lambda: defaultdict(lambda: CorefCluster()))
@@ -214,7 +214,7 @@ def parse_corefs_data(filename, entity_filename):
     for line in corefs_data:
         if line[14] != 'null':
             i += 1
-    print 'Total annotated:', i
+    print('Total annotated:', i)
     return coref_clusters
 
 gold_corefs_data = parse_corefs_data('corefs-test.txt',
@@ -245,10 +245,10 @@ orig_merge_evaluator = Evaluator()
 def generate_external_file(coref_clusters):
     import copy
     copy_coref_clusters = copy.deepcopy(coref_clusters)
-    for key, doc_clusters in copy_coref_clusters.iteritems():
+    for key, doc_clusters in copy_coref_clusters.items():
         non_matching_clusters = []
         cluster_entity_mapping = defaultdict(set)
-        for coref_cluster in doc_clusters.itervalues():
+        for coref_cluster in doc_clusters.values():
 
             for mention_group in coref_cluster.mention_groups.values():
                 for mention in mention_group.mentions:
@@ -271,7 +271,7 @@ def generate_external_file(coref_clusters):
             for mention_group in mention_groups:
                 doc_clusters[new_cluster_id].add_mention_group(mention_group)
 
-        for entity_url, cluster_ids in cluster_entity_mapping.iteritems():
+        for entity_url, cluster_ids in cluster_entity_mapping.items():
             if len(cluster_ids) > 1:
                 # START: EVALUATE: ORIG
                 combinations = list(itertools.combinations([(mention.gold_coref_id, clust_id) for
@@ -386,14 +386,14 @@ def evaluate(combinations, evaluator):
 
 def generate_new_mentions(new_coref_clusters):
     new_mentions = defaultdict(list)
-    for doc_id, doc_coref_clusters in new_coref_clusters.iteritems():
+    for doc_id, doc_coref_clusters in new_coref_clusters.items():
         doc_id, par_id = doc_id
-        for cluster_id, coref_cluster in doc_coref_clusters.iteritems():
-            for mention_group in coref_cluster.mention_groups.itervalues():
+        for cluster_id, coref_cluster in doc_coref_clusters.items():
+            for mention_group in coref_cluster.mention_groups.values():
                 for mention in mention_group.mentions:
                     key = (doc_id, par_id, mention.sent_id, mention.start_i)
                     new_mentions[key].append((cluster_id, mention.end_i))
-            for mention_group in coref_cluster.non_noun_groups.itervalues():
+            for mention_group in coref_cluster.non_noun_groups.values():
                 for mention in mention_group.mentions:
                     key = (doc_id, par_id, mention.sent_id, mention.start_i)
                     new_mentions[key].append((cluster_id, mention.end_i))
@@ -401,8 +401,8 @@ def generate_new_mentions(new_coref_clusters):
 
 
 def generate_conll_corefs_file(new_mentions):
-    old_corefs_data = open('conll-test.predicted.txt')
-    new_corefs_file = open('conll-test.predicted.new.txt', 'w')
+    old_corefs_data = open('conll-test.predicted.txt', 'rt', encoding='utf-8')
+    new_corefs_file = open('conll-test.predicted.new.txt', 'w', encoding='utf-8')
 
     sent_id = 0
     end_clusters = defaultdict(list)
@@ -435,7 +435,7 @@ def generate_conll_corefs_file(new_mentions):
                 tags = start_tags + tags
             if len(tags) > 0:
                 if set(tags) != set(line[-1].split('|')):
-                    print line[:3], line[-1], tags
+                    print(line[:3], line[-1], tags)
                 line[-1] = '|'.join(tags)
             if len(tags) == 0 and line[-1] != '-':
                 line[-1] = '-'
@@ -448,7 +448,7 @@ new_coref_clusters = generate_external_file(gold_corefs_data)
 generate_conll_corefs_file(generate_new_mentions(new_coref_clusters))
 
 
-print 'Original Split values: ', orig_split_evaluator.TP, orig_split_evaluator.FP, orig_split_evaluator.TN, orig_split_evaluator.FN
-print 'Split values: ', splitEvaluator.TP, splitEvaluator.FP, splitEvaluator.TN, splitEvaluator.FN
-print 'Merge values: ', mergeEvaluator.TP, mergeEvaluator.FP, mergeEvaluator.TN, mergeEvaluator.FN
-print 'Original Merge values: ', orig_merge_evaluator.TP, orig_merge_evaluator.FP, orig_merge_evaluator.TN, orig_merge_evaluator.FN
+print('Original Split values: ', orig_split_evaluator.TP, orig_split_evaluator.FP, orig_split_evaluator.TN, orig_split_evaluator.FN)
+print('Split values: ', splitEvaluator.TP, splitEvaluator.FP, splitEvaluator.TN, splitEvaluator.FN)
+print('Merge values: ', mergeEvaluator.TP, mergeEvaluator.FP, mergeEvaluator.TN, mergeEvaluator.FN)
+print('Original Merge values: ', orig_merge_evaluator.TP, orig_merge_evaluator.FP, orig_merge_evaluator.TN, orig_merge_evaluator.FN)

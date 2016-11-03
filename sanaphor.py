@@ -1,14 +1,14 @@
 from collections import defaultdict
-import pickle
-import nltk
 import itertools
-#yago_labels = pickle.load(open('label_type.pi'))
+
 
 class CorefCluster(object):
     # groups of mentions, can be headword or some other grouping
     mention_groups = None
     non_noun_groups = None
     coref_cluster_id = None
+    entity_url = None
+    ner_tag = None
 
     def __init__(self):
         self.non_noun_groups = defaultdict(lambda: MentionGroup())
@@ -42,6 +42,8 @@ class CorefCluster(object):
             self.non_noun_groups[mention.head_lemma].add_mention(mention)
         else:
             self.mention_groups[mention.head_lemma].add_mention(mention)
+            self.entity_url = mention.entity_url
+            self.ner_tag = mention.ner_tag
         self.coref_cluster_id = mention.coref_cluster_id
 
     def add_cluster(self, to_merge_cluster):
@@ -60,6 +62,14 @@ class CorefCluster(object):
                     return True
         return False
 
+    def mentions(self):
+        all_mentions = [mention for mention_group in self.mention_groups.values() for mention
+                        in mention_group.mentions]
+        non_noun_mentions = [mention for mention_group in self.non_noun_groups.values() for mention
+                             in mention_group.mentions]
+        all_mentions.extend(non_noun_mentions)
+        return sorted(all_mentions, key=lambda x: (x.sent_id, x.start_i))
+
 
 class MentionGroup(object):
     mentions = None
@@ -76,16 +86,16 @@ class MentionGroup(object):
         self.head_lemma = mention.head_lemma
 
     @property
-    def entity_type(self):
+    def entity_url(self):
         try:
-            return [m.entity_type for m in self.mentions if m.entity_type][0]
+            return [m.entity_url for m in self.mentions if m.entity_url][0]
         except:
             return None
 
     @property
-    def entity_url(self):
+    def ner_tag(self):
         try:
-            return [m.entity_url for m in self.mentions if m.entity_url][0]
+            return [m.ner_tag for m in self.mentions if m.ner_tag != 'O'][0]
         except:
             return None
 
@@ -98,7 +108,6 @@ class Mention(object):
     end_i = None
     head_lemma = None
     head_pos = None
-    ner_type = None
     ner_tag = None
     pos_seq = None
     coref_cluster_id = None
@@ -113,88 +122,29 @@ class Mention(object):
         self.end_i = int(date_tuple[5])
         self.mention = date_tuple[6]
         self.ner_entity = date_tuple[7]
-        self.ner_tag = date_tuple[12]
+        if date_tuple[12] != "O":
+            self.ner_tag = date_tuple[12]
         self.head_lemma_orig = date_tuple[8]
         self.head_lemma = self.mention.lower()
         self.head_pos = date_tuple[9]
         self.coref_cluster_id = date_tuple[10]
         self.gold_coref_id = date_tuple[11]
         self.pos_seq = date_tuple[13]
-        if type(date_tuple[14]) == list:
-            # SPOTLIGHT
-            if len(date_tuple[14]) > 0:
-                self.entity_url = self.entity_type = date_tuple[14][0]
-        elif date_tuple[14] != 'null':
+        if date_tuple[14] != 'null':
             self.entity_url = date_tuple[14]
             try:
                 self.entity_type = ['<dbpedia:' + x.rsplit('/', 1)[1] + '>' for x in date_tuple[15].split()][0]
             except:
                 pass
-        # if self.mention.lower() in yago_labels and len(yago_labels[self.mention.lower()]) > 0:
-        #    self.entity_type = yago_labels[self.mention.lower()][0]
-        #    self.entity_url = self.entity_type
-        # else:
-        #     full_ngram = self.mention.lower().split()
-        #     # generate n-grams
-        #     for k in range(len(full_ngram)-1, 0, -1):
-        #         matching_ngrams = set()
-        #         for ngram in nltk.ngrams(full_ngram, k):
-        #             if self.head_lemma not in ngram:
-        #                 continue
-        #             ngram = ' '.join(ngram)
-        #             if ngram in yago_labels:
-        #                 matching_ngrams.add(yago_labels[ngram][0])
-        #         if matching_ngrams:
-        #             self.entity_type = self.entity_url = list(matching_ngrams)[0]
-        #             break
+
+    def has_semantics(self):
+        return self.entity_url is not None or self.ner_tag is not None
 
     def __unicode__(self):
         return self.mention
 
     def __repr__(self):
         return self.mention
-
-
-def parse_corefs_data_spot(filename, spot_filename):
-    """
-    :param filename:
-    :param entity_filename: - spotlighted filename
-    :return:
-    """
-    spotlight_dict = {}
-    entity_data = open(spot_filename).readlines()
-    entity_data = [x.strip().split('\t') for x in entity_data if x.strip() and not x.startswith(('#begin', '#end'))]
-    entity_data = [x for x in entity_data if x[-1] != '-']
-    for doc_id, par_id, sent_id, start_i, word, link in entity_data:
-        spotlight_dict[(doc_id, par_id, sent_id, start_i)] = link[1:-1].split('|')
-
-    corefs_data = open(filename).readlines()
-    corefs_data = [x.strip().split('\t') for x in corefs_data]
-    # remove header
-    del corefs_data[0]
-
-    i = 0
-    for line in corefs_data:
-        start_i = int(line[4])
-        end_i = int(line[5])
-        head_lemma = line[8]
-        spot_entities = set()
-        for index in range(start_i, end_i):
-            key = tuple(line[:3] + [str(index)])
-            if key in spotlight_dict:
-                entity_url, orig_text = spotlight_dict[key]
-                if head_lemma.lower() in entity_url.lower():
-                    spot_entities.add(entity_url)
-        if spot_entities:
-            i += 1
-        line.append(list(spot_entities))
-    print('Total spotlighted:', i)
-
-    # dict of meta information about auto cluster,
-    coref_clusters = defaultdict(lambda: defaultdict(lambda: CorefCluster()))
-    for data_tuple in corefs_data:
-        coref_clusters[(data_tuple[0], data_tuple[1])][data_tuple[10]].add_mention(Mention(data_tuple))
-    return coref_clusters
 
 
 def parse_corefs_data(filename, entity_filename):
@@ -264,6 +214,7 @@ def generate_external_file(coref_clusters):
                     del coref_cluster.mention_groups[non_matching_group.head_lemma]
                 non_matching_clusters.append(non_matching_groups)
 
+        # splitting
         while len(non_matching_clusters) > 0:
             mention_groups = non_matching_clusters.pop()
             new_cluster_id = min(y.mention_id for x in mention_groups for y in x.mentions)
@@ -271,6 +222,7 @@ def generate_external_file(coref_clusters):
             for mention_group in mention_groups:
                 doc_clusters[new_cluster_id].add_mention_group(mention_group)
 
+        # merging
         for entity_url, cluster_ids in cluster_entity_mapping.items():
             if len(cluster_ids) > 1:
                 # START: EVALUATE: ORIG
@@ -299,69 +251,68 @@ def generate_external_file(coref_clusters):
     return copy_coref_clusters
 
 
+def is_url_compatible(mention, cluster):
+    cluster_words = {'the', 'a'}.union([m.ner_entity.lower().split() for m in cluster.mentions()])
+    cur_entity_words = set(mention.ner_entity.lower().split())
+    if not cluster_words.issuperset(cur_entity_words):
+        return False
+    if cur_entity_words.issuperset(cluster_words):
+        cluster.entity_url = mention.entity_url
+        return True
+    return False
+
+
 def doesnt_match(doc_cluster):
-    entity_types = set()
-    entity_words = {'the', 'a'}
-    all_mentions = [mention for mention_group in doc_cluster.mention_groups.values() for mention in mention_group.mentions]
-    for mention in sorted(all_mentions, key=lambda x: (x.sent_id, x.start_i)):
-        if mention.entity_url is not None:
-            cur_entity_words = set(mention.ner_entity.lower().split())
-            if not entity_words.issuperset(cur_entity_words):
-                entity_words = entity_words.union(cur_entity_words)
-                entity_types.add(mention.entity_url)
-            if cur_entity_words.issuperset(entity_words):
-                entity_types = {mention.entity_url}
-                entity_words = cur_entity_words
-    # START: ORIG EVALUATION
-    if len(set([mention.entity_url for mention in all_mentions if mention.entity_url])) > 1:
-        combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in all_mentions if mention.gold_coref_id != '-1'], 2))
+
+    new_clusters = [CorefCluster()]
+    last_cluster = new_clusters[0]
+    for mention in doc_cluster.mentions():
+        if not mention.has_semantics():
+            last_cluster.add_mention(mention)
+        else:
+            # Iterate clusters to find if mention fits or we should create a new one,
+            # start with the last one
+            for coref_cluster in reversed(new_clusters):
+                # if ner tag does not match -> create new cluster
+                if mention.ner_tag is not None and coref_cluster.ner_tag != mention.ner_tag:
+                    # DEBUG
+                    if mention.entity_url != coref_cluster.entity_url:
+                        print(mention)
+                    last_cluster = CorefCluster()
+                    last_cluster.add_mention(mention)
+                    new_clusters.append(last_cluster)
+                # if url doesn't match -> check for compatibility
+                elif mention.entity_url is not None and coref_cluster.entity_url != mention.entity_url:
+                    if is_url_compatible(mention, last_cluster):
+                        last_cluster.add_mention(mention)
+                    else:
+                        last_cluster = CorefCluster()
+                        last_cluster.add_mention(mention)
+                        new_clusters.append(last_cluster)
+                else:
+                    last_cluster.add_mention(mention)
+
+    if len(new_clusters) > 1:
+        # START: ORIG EVALUATION
+        combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in doc_cluster.mentions() if mention.gold_coref_id != '-1'], 2))
         evaluate(combinations, orig_split_evaluator)
-    # END: ORIG EVALUATION
-    if len(entity_types) > 1:
-        latest_id = (0, 0)
-        latest_group = None
-        for mention_group in doc_cluster.mention_groups.values():
-            for mention in mention_group.mentions:
-                if mention.entity_url in entity_types:
-                    if latest_id < (mention.sent_id, mention.start_i):
-                        latest_group = mention_group
-                        latest_id = (mention.sent_id, mention.start_i)
-        # collection other mention_groups that share exclusive words with the latest group
-        exclusive_words = set(latest_group.head_lemma.split())
-        for mention_group in doc_cluster.mention_groups.values():
-            if mention_group.entity_url and mention_group.entity_url != latest_group.entity_url:
-                exclusive_words = exclusive_words.difference(mention_group.head_lemma.split())
-
-        non_matching_groups = []
-        for mention_group in doc_cluster.mention_groups.values():
-            if (mention_group.entity_url is None and exclusive_words.intersection(mention_group.head_lemma.split()))\
-                    or mention_group.entity_url == latest_group.entity_url:
-                non_matching_groups.append(mention_group)
-
+        # END: ORIG EVALUATION
+    if len(new_clusters) > 1:
         # START: EVALUATION
-        non_matching_ids = []
-        other_ids = []
-        for mention_group in doc_cluster.mention_groups.values():
-            if (mention_group.entity_url is None and exclusive_words.intersection(mention_group.head_lemma.split()))\
-                    or mention_group.entity_url == latest_group.entity_url:
-                for mention in mention_group.mentions:
-                    if mention.gold_coref_id != '-1':
-                        non_matching_ids.append((mention.gold_coref_id, 1))
-            else:
-                for mention in mention_group.mentions:
-                    if mention.gold_coref_id != '-1':
-                        other_ids.append((mention.gold_coref_id, 2))
+        new_ids = []
+        for i, cluster in enumerate(new_clusters):
+            for mention in cluster.mentions():
+                new_ids.append((mention.gold_coref_id, i+1))
 
-        combinations = list(itertools.combinations(non_matching_ids+other_ids, 2))
+        combinations = list(itertools.combinations(new_ids, 2))
         evaluate(combinations, splitEvaluator)
-
         # END: EVALUATION
 
         return non_matching_groups
 
     # START: EVALUATION
-    if len(set([mention.entity_url for mention in all_mentions if mention.entity_url])) > 1:
-        combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in all_mentions if mention.gold_coref_id != '-1'], 2))
+    if len(new_clusters) > 1:
+        combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in doc_cluster.mentions() if mention.gold_coref_id != '-1'], 2))
         evaluate(combinations, splitEvaluator)
     # END: EVALUATION
 
@@ -448,7 +399,9 @@ new_coref_clusters = generate_external_file(gold_corefs_data)
 generate_conll_corefs_file(generate_new_mentions(new_coref_clusters))
 
 
-print('Original Split values: ', orig_split_evaluator.TP, orig_split_evaluator.FP, orig_split_evaluator.TN, orig_split_evaluator.FN)
+print('Original Split values: ', orig_split_evaluator.TP, orig_split_evaluator.FP,
+      orig_split_evaluator.TN, orig_split_evaluator.FN)
 print('Split values: ', splitEvaluator.TP, splitEvaluator.FP, splitEvaluator.TN, splitEvaluator.FN)
 print('Merge values: ', mergeEvaluator.TP, mergeEvaluator.FP, mergeEvaluator.TN, mergeEvaluator.FN)
-print('Original Merge values: ', orig_merge_evaluator.TP, orig_merge_evaluator.FP, orig_merge_evaluator.TN, orig_merge_evaluator.FN)
+print('Original Merge values: ', orig_merge_evaluator.TP, orig_merge_evaluator.FP,
+      orig_merge_evaluator.TN, orig_merge_evaluator.FN)

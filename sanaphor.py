@@ -301,12 +301,13 @@ def doesnt_match(doc_cluster):
         combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in doc_cluster.mentions() if mention.gold_coref_id != '-1'], 2))
         evaluate(combinations, orig_split_evaluator)
         # END: ORIG EVALUATION
-    if len(new_clusters) > 1:
+
         # START: EVALUATION
         new_ids = []
         for i, cluster in enumerate(new_clusters):
             for mention in cluster.mentions():
-                new_ids.append((mention.gold_coref_id, i+1))
+                if mention.gold_coref_id != '-1':
+                    new_ids.append((mention.gold_coref_id, i+1))
 
         combinations = list(itertools.combinations(new_ids, 2))
         evaluate(combinations, splitEvaluator)
@@ -314,12 +315,6 @@ def doesnt_match(doc_cluster):
 
         # TODO: return something
         return []
-
-    # START: EVALUATION
-    if len(new_clusters) > 1:
-        combinations = list(itertools.combinations([(mention.gold_coref_id, 0) for mention in doc_cluster.mentions() if mention.gold_coref_id != '-1'], 2))
-        evaluate(combinations, splitEvaluator)
-    # END: EVALUATION
 
     return None
 

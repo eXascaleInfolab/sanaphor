@@ -42,7 +42,8 @@ class CorefCluster(object):
             self.non_noun_groups[mention.head_lemma].add_mention(mention)
         else:
             self.mention_groups[mention.head_lemma].add_mention(mention)
-            self.entity_url = mention.entity_url
+            if mention.entity_url:
+                self.entity_url = mention.entity_url
             self.ner_tag = mention.ner_tag
         self.coref_cluster_id = mention.coref_cluster_id
 
@@ -275,12 +276,15 @@ def doesnt_match(doc_cluster):
             for coref_cluster in reversed(new_clusters):
                 # if ner tag does not match -> create new cluster
                 if mention.ner_tag is not None and coref_cluster.ner_tag is not None and coref_cluster.ner_tag != mention.ner_tag:
-                    # DEBUG
-                    if mention.entity_url != coref_cluster.entity_url:
-                        print(mention)
-                    last_cluster = CorefCluster()
-                    last_cluster.add_mention(mention)
-                    new_clusters.append(last_cluster)
+                    if is_url_compatible(mention, last_cluster):
+                        last_cluster.add_mention(mention)
+                    else:
+                        # DEBUG
+                        if mention.entity_url != coref_cluster.entity_url:
+                            print(mention)
+                        last_cluster = CorefCluster()
+                        last_cluster.add_mention(mention)
+                        new_clusters.append(last_cluster)
                 # if url doesn't match -> check for compatibility
                 elif mention.entity_url is not None and coref_cluster.entity_url is not None and coref_cluster.entity_url != mention.entity_url:
                     if is_url_compatible(mention, last_cluster):

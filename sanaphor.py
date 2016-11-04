@@ -252,7 +252,7 @@ def generate_external_file(coref_clusters):
 
 
 def is_url_compatible(mention, cluster):
-    cluster_words = {'the', 'a'}.union([m.ner_entity.lower().split() for m in cluster.mentions()])
+    cluster_words = {'the', 'a'}.union([w for m in cluster.mentions() for w in m.ner_entity.lower().split()])
     cur_entity_words = set(mention.ner_entity.lower().split())
     if not cluster_words.issuperset(cur_entity_words):
         return False
@@ -274,7 +274,7 @@ def doesnt_match(doc_cluster):
             # start with the last one
             for coref_cluster in reversed(new_clusters):
                 # if ner tag does not match -> create new cluster
-                if mention.ner_tag is not None and coref_cluster.ner_tag != mention.ner_tag:
+                if mention.ner_tag is not None and coref_cluster.ner_tag is not None and coref_cluster.ner_tag != mention.ner_tag:
                     # DEBUG
                     if mention.entity_url != coref_cluster.entity_url:
                         print(mention)
@@ -282,7 +282,7 @@ def doesnt_match(doc_cluster):
                     last_cluster.add_mention(mention)
                     new_clusters.append(last_cluster)
                 # if url doesn't match -> check for compatibility
-                elif mention.entity_url is not None and coref_cluster.entity_url != mention.entity_url:
+                elif mention.entity_url is not None and coref_cluster.entity_url is not None and coref_cluster.entity_url != mention.entity_url:
                     if is_url_compatible(mention, last_cluster):
                         last_cluster.add_mention(mention)
                     else:
@@ -308,7 +308,8 @@ def doesnt_match(doc_cluster):
         evaluate(combinations, splitEvaluator)
         # END: EVALUATION
 
-        return non_matching_groups
+        # TODO: return something
+        return []
 
     # START: EVALUATION
     if len(new_clusters) > 1:

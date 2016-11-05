@@ -276,17 +276,17 @@ def doesnt_match(doc_cluster):
             added = False
             for coref_cluster in reversed(new_clusters):
                 if mention.ner_tag is not None and coref_cluster.ner_tag == mention.ner_tag:
-                    last_cluster.add_mention(mention)
+                    coref_cluster.add_mention(mention)
                     added = True
                     break
                 # if url doesn't match -> check for compatibility
                 elif mention.entity_url is not None and coref_cluster.entity_url is not None:
                     if coref_cluster.entity_url == mention.entity_url:
-                        last_cluster.add_mention(mention)
+                        coref_cluster.add_mention(mention)
                         added = True
                         break
-                    elif is_url_compatible(mention, last_cluster):
-                        last_cluster.add_mention(mention)
+                    elif is_url_compatible(mention, coref_cluster):
+                        coref_cluster.add_mention(mention)
                         added = True
                         break
             if not added:

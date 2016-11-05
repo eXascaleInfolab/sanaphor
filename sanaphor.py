@@ -268,33 +268,31 @@ def doesnt_match(doc_cluster):
     new_clusters = [CorefCluster()]
     last_cluster = new_clusters[0]
     for mention in doc_cluster.mentions():
-        if not mention.has_semantics():
+        if not mention.has_semantics() or last_cluster.ner_tag is None:
             last_cluster.add_mention(mention)
         else:
             # Iterate clusters to find if mention fits or we should create a new one,
             # start with the last one
+            added = False
             for coref_cluster in reversed(new_clusters):
-                # if ner tag does not match -> create new cluster
-                if mention.ner_tag is not None and coref_cluster.ner_tag is not None and coref_cluster.ner_tag != mention.ner_tag:
-                    if is_url_compatible(mention, last_cluster):
-                        last_cluster.add_mention(mention)
-                    else:
-                        # DEBUG
-                        if mention.entity_url != coref_cluster.entity_url:
-                            print(mention)
-                        last_cluster = CorefCluster()
-                        last_cluster.add_mention(mention)
-                        new_clusters.append(last_cluster)
-                # if url doesn't match -> check for compatibility
-                elif mention.entity_url is not None and coref_cluster.entity_url is not None and coref_cluster.entity_url != mention.entity_url:
-                    if is_url_compatible(mention, last_cluster):
-                        last_cluster.add_mention(mention)
-                    else:
-                        last_cluster = CorefCluster()
-                        last_cluster.add_mention(mention)
-                        new_clusters.append(last_cluster)
-                else:
+                if mention.ner_tag is not None and coref_cluster.ner_tag == mention.ner_tag:
                     last_cluster.add_mention(mention)
+                    added = True
+                    break
+                # if url doesn't match -> check for compatibility
+                elif mention.entity_url is not None and coref_cluster.entity_url is not None:
+                    if coref_cluster.entity_url == mention.entity_url:
+                        last_cluster.add_mention(mention)
+                        added = True
+                        break
+                    elif is_url_compatible(mention, last_cluster):
+                        last_cluster.add_mention(mention)
+                        added = True
+                        break
+            if not added:
+                last_cluster = CorefCluster()
+                last_cluster.add_mention(mention)
+                new_clusters.append(last_cluster)
 
     if len(new_clusters) > 1:
         # START: ORIG EVALUATION
@@ -309,8 +307,8 @@ def doesnt_match(doc_cluster):
                 if mention.gold_coref_id != '-1':
                     new_ids.append((mention.gold_coref_id, i+1))
 
-        combinations = list(itertools.combinations(new_ids, 2))
-        evaluate(combinations, splitEvaluator)
+        new_combinations = list(itertools.combinations(new_ids, 2))
+        evaluate(new_combinations, splitEvaluator)
         # END: EVALUATION
 
         # TODO: return something
@@ -402,6 +400,6 @@ generate_conll_corefs_file(generate_new_mentions(new_coref_clusters))
 print('Original Split values: ', orig_split_evaluator.TP, orig_split_evaluator.FP,
       orig_split_evaluator.TN, orig_split_evaluator.FN)
 print('Split values: ', splitEvaluator.TP, splitEvaluator.FP, splitEvaluator.TN, splitEvaluator.FN)
-print('Merge values: ', mergeEvaluator.TP, mergeEvaluator.FP, mergeEvaluator.TN, mergeEvaluator.FN)
 print('Original Merge values: ', orig_merge_evaluator.TP, orig_merge_evaluator.FP,
       orig_merge_evaluator.TN, orig_merge_evaluator.FN)
+print('Merge values: ', mergeEvaluator.TP, mergeEvaluator.FP, mergeEvaluator.TN, mergeEvaluator.FN)
